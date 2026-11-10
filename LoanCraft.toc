@@ -1,0 +1,18 @@
+## Interface: 16001
+## Title: LoanCraft
+## Notes: Gold loans between players: detects trades and mail, interest and due dates, a ledger with profit/loss, reminders, and sync with the other player's LoanCraft.
+## Author: asenrusev
+## Version: @project-version@
+## SavedVariables: LoanCraftDB
+## IconTexture: Interface\Icons\INV_Misc_Coin_02
+## AddonCompartmentFunc: LoanCraft_OnAddonCompartmentClick
+## OptionalDeps: LibStub, LibDataBroker-1.1
+## X-Website: https://github.com/asenrusev/LoanCraft
+
+Core.lua
+Sync.lua
+Widgets.lua
+Detect.lua
+Prompt.lua
+UI.lua
+Minimap.lua

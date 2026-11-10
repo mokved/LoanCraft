@@ -1,0 +1,88 @@
+name: Release to CurseForge
+
+# Manual only: Actions -> Release to CurseForge -> Run workflow
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump from the last release (the first release uses the top CHANGELOG.md heading)"
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+      beta:
+        description: "Beta (x.y.z-betaN)"
+        type: boolean
+        default: false
+      dry_run:
+        description: "Dry run: test and build the zip only (no tag pushed, nothing uploaded)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency: release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      DRY_RUN: ${{ inputs.dry_run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Work out version
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ID: ${{ vars.CURSEFORGE_PROJECT_ID }}
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          VERSION=$(bash .github/next-version.sh "${{ inputs.bump }}" "${{ inputs.beta }}") || fail "Couldn't work out the version"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "### Version: $VERSION" >> "$GITHUB_STEP_SUMMARY"
+          echo "Releasing $VERSION"
+          git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null && fail "Tag $VERSION already exists"
+          grep -qx "## ${VERSION%%-*}" CHANGELOG.md || fail "Add a '## ${VERSION%%-*}' section to CHANGELOG.md, then run again"
+          if [ "$DRY_RUN" != "true" ]; then
+            [ "$GITHUB_REF" = "refs/heads/main" ] || fail "Real releases run from main (use Dry run on other branches)"
+            [ -n "$CF_API_TOKEN" ] || fail "Secret CF_API_TOKEN is not set"
+            [ -n "$CF_ID" ] || fail "Variable CURSEFORGE_PROJECT_ID is not set"
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run tests
+        run: |
+          pip install lupa
+          python tests/test_addon.py
+
+      - name: Tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$VERSION" -m "LoanCraft $VERSION"
+          if [ "$DRY_RUN" != "true" ]; then git push origin "$VERSION"; fi
+
+      # Builds .release/LoanCraft-<version>.zip, stamps the version into the TOC and,
+      # unless -d, uploads to CurseForge (and Wago if configured) and creates the GitHub release.
+      - name: Package and upload
+        uses: BigWigsMods/packager@v2
+        with:
+          args: >-
+            ${{ inputs.dry_run && '-d' || '' }}
+            ${{ vars.CURSEFORGE_PROJECT_ID && format('-p {0}', vars.CURSEFORGE_PROJECT_ID) || '' }}
+            ${{ vars.WAGO_PROJECT_ID && format('-a {0}', vars.WAGO_PROJECT_ID) || '' }}
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
+          GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Keep the zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: LoanCraft-${{ env.VERSION }}
+          path: .release/*.zip

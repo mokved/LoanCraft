@@ -1,0 +1,11 @@
+package-as: LoanCraft
+
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
+
+ignore:
+  - tests
+  - README.md
+  - CURSEFORGE.md
+  - DEVELOPMENT.md

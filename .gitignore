@@ -39,3 +39,10 @@ luac.out
 *.x86_64
 *.hex
 
+
+# Addon packaging / tooling
+.release/
+.DS_Store
+__pycache__/
+.env
+.venv/
