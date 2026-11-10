@@ -31,19 +31,18 @@ Everything is in the UI. There are no chat commands.
 See [DEVELOPMENT.md](DEVELOPMENT.md) for how to run the tests and load your local copy in game, on Windows and macOS.
 
 ## Releasing to CurseForge
-1. Create the project on CurseForge (game: World of Warcraft) and note its **Project ID**.
+1. Create the project on CurseForge (game: World of Warcraft). Note its **Project ID**, and under its source settings link this GitHub repo with automatic packaging set to **tagged commits**.
 2. Create an API token at https://legacy.curseforge.com/account/api-tokens.
-3. In this repo: **Settings → Secrets and variables → Actions**
-   - Secret `CF_API_TOKEN` = the token
-   - Variable `CURSEFORGE_PROJECT_ID` = the project ID
-   - Optional for Wago Addons: secret `WAGO_API_TOKEN` and variable `WAGO_PROJECT_ID`
+3. In this repo: **Settings → Webhooks → Add webhook**
+   - Payload URL: `https://www.curseforge.com/api/projects/<PROJECT_ID>/package?token=<API_TOKEN>`
+   - Content type: `application/json`, events: **Just the push event**
 4. Add a `## x.y.z` section for the next version to `CHANGELOG.md` and push.
 5. **Actions → Release to CurseForge → Run workflow**, then pick the bump: **patch** (1.1.0 → 1.1.1), **minor** (→ 1.2.0) or **major** (→ 2.0.0).
    - The version counts up from the last release tag. The very first release uses the top `## x.y.z` heading in `CHANGELOG.md`.
    - Tick **Beta** for `x.y.z-betaN`. N counts up on its own.
    - Tick **Dry run** to only test and build the zip, which you can download from the run. It also shows which version a real run would get. Dry runs work from any branch; real releases only from `main`.
 
-The workflow ([.github/workflows/release.yml](.github/workflows/release.yml)) works out the version ([.github/next-version.sh](.github/next-version.sh)), checks that the changelog has a section for it, runs the tests, tags the commit, and builds the zip with the [BigWigs packager](https://github.com/BigWigsMods/packager). It stamps the version into the TOC, uploads to CurseForge under the Forever flavor (from `## Interface: 16001`), and creates a GitHub release.
+The workflow ([.github/workflows/release.yml](.github/workflows/release.yml)) works out the version ([.github/next-version.sh](.github/next-version.sh)), checks that the changelog has a section for it, runs the tests and pushes the version tag. The webhook tells CurseForge about the tag, and CurseForge's packager builds and uploads the file: Release, or Beta when the tag contains `beta`. Only the repo owner can run the workflow. The workflow also builds the zip locally with the [BigWigs packager](https://github.com/BigWigsMods/packager) (`-d`, no upload), so every run has a zip you can download.
 
 ## License
 [MIT](LICENSE)

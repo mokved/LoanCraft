@@ -1,6 +1,7 @@
 name: Release to CurseForge
 
 # Manual only: Actions -> Release to CurseForge -> Run workflow
+# Tests, then pushes the version tag. CurseForge's own packager (GitHub webhook) builds and uploads from the tag.
 on:
   workflow_dispatch:
     inputs:
@@ -14,7 +15,7 @@ on:
         type: boolean
         default: false
       dry_run:
-        description: "Dry run: test and build the zip only (no tag pushed, nothing uploaded)"
+        description: "Dry run: test and build the zip only (no tag pushed)"
         type: boolean
         default: false
 
@@ -25,6 +26,7 @@ concurrency: release
 
 jobs:
   release:
+    if: github.actor == github.repository_owner
     runs-on: ubuntu-latest
     env:
       DRY_RUN: ${{ inputs.dry_run }}
@@ -34,9 +36,6 @@ jobs:
           fetch-depth: 0
 
       - name: Work out version
-        env:
-          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-          CF_ID: ${{ vars.CURSEFORGE_PROJECT_ID }}
         run: |
           fail() { echo "::error::$1"; exit 1; }
           VERSION=$(bash .github/next-version.sh "${{ inputs.bump }}" "${{ inputs.beta }}") || fail "Couldn't work out the version"
@@ -47,8 +46,6 @@ jobs:
           grep -qx "## ${VERSION%%-*}" CHANGELOG.md || fail "Add a '## ${VERSION%%-*}' section to CHANGELOG.md, then run again"
           if [ "$DRY_RUN" != "true" ]; then
             [ "$GITHUB_REF" = "refs/heads/main" ] || fail "Real releases run from main (use Dry run on other branches)"
-            [ -n "$CF_API_TOKEN" ] || fail "Secret CF_API_TOKEN is not set"
-            [ -n "$CF_ID" ] || fail "Variable CURSEFORGE_PROJECT_ID is not set"
           fi
 
       - uses: actions/setup-python@v5
@@ -67,19 +64,11 @@ jobs:
           git tag -a "$VERSION" -m "LoanCraft $VERSION"
           if [ "$DRY_RUN" != "true" ]; then git push origin "$VERSION"; fi
 
-      # Builds .release/LoanCraft-<version>.zip, stamps the version into the TOC and,
-      # unless -d, uploads to CurseForge (and Wago if configured) and creates the GitHub release.
-      - name: Package and upload
+      # Local build only (-d: no upload) so you can grab and test the zip. CurseForge builds its own from the tag.
+      - name: Build zip
         uses: BigWigsMods/packager@v2
         with:
-          args: >-
-            ${{ inputs.dry_run && '-d' || '' }}
-            ${{ vars.CURSEFORGE_PROJECT_ID && format('-p {0}', vars.CURSEFORGE_PROJECT_ID) || '' }}
-            ${{ vars.WAGO_PROJECT_ID && format('-a {0}', vars.WAGO_PROJECT_ID) || '' }}
-        env:
-          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-          WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
-          GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+          args: -d
 
       - name: Keep the zip
         uses: actions/upload-artifact@v4
